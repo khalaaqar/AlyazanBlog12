@@ -50,7 +50,8 @@ const CompaniesTab = () => {
         await sendNewsletter.mutateAsync({
           title: company.name,
           content: company.description || company.content,
-          type: 'company'
+          type: 'company',
+          id: company.id
         });
         toast({
           title: "تم إرسال النشرة البريدية!",

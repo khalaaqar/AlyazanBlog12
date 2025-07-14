@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
@@ -12,6 +11,8 @@ interface NewsletterData {
   content: string;
   type: 'article' | 'company';
   subscribers: Array<{ email: string; name: string }>;
+  id?: string;
+  siteUrl?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -25,7 +26,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("🕐 Timestamp:", new Date().toISOString());
     
     // Parse request body with error handling
-    let requestBody: any;
+    let requestBody: NewsletterData;
     try {
       requestBody = await req.json();
       console.log("📨 Request body received:", JSON.stringify(requestBody, null, 2));
@@ -47,11 +48,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
     
-    const { title, content, type, subscribers }: NewsletterData = requestBody;
+    const { title, content, type, subscribers, id, siteUrl } = requestBody;
     
     console.log(`📰 Processing newsletter: ${title || 'NO TITLE'}`);
     console.log(`🏷️ Type: ${type || 'NO TYPE'}`);
     console.log(`👥 Subscribers count: ${subscribers?.length || 0}`);
+    console.log(`🆔 Content ID: ${id || 'NO ID'}`);
 
     // Validate required fields
     if (!title || !content || !type) {
@@ -95,12 +97,9 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (!sendGridApiKey) {
       console.error("❌ SENDGRID_API_KEY environment variable not found");
-      const availableEnvVars = Object.keys(Deno.env.toObject());
-      console.log("🔧 Available env vars:", availableEnvVars);
       return new Response(
         JSON.stringify({ 
           error: "SENDGRID_API_KEY is not configured",
-          availableEnvVars: availableEnvVars,
           success: false
         }),
         {
@@ -116,12 +115,9 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("🔑 API Key format check:");
     console.log("  - Starts with 'SG.':", sendGridApiKey.startsWith("SG."));
     console.log("  - Length:", sendGridApiKey.length);
-    console.log("  - First 10 chars:", sendGridApiKey.substring(0, 10));
 
     // Test SendGrid API connectivity
     console.log("🌐 === Testing SendGrid Connectivity ===");
-    let connectivityTestPassed = false;
-    
     try {
       console.log("🔗 Making connectivity test to SendGrid...");
       const testResponse = await fetch("https://api.sendgrid.com/v3/user/profile", {
@@ -160,7 +156,6 @@ const handler = async (req: Request): Promise<Response> => {
       const profileData = await testResponse.json();
       console.log("✅ SendGrid connectivity test successful!");
       console.log("👤 Profile username:", profileData?.username || 'Not available');
-      connectivityTestPassed = true;
       
     } catch (connectivityError: any) {
       console.error("💥 SendGrid connectivity test threw exception:", {
@@ -185,27 +180,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    if (!connectivityTestPassed) {
-      console.error("❌ Connectivity test did not pass - aborting");
-      return new Response(
-        JSON.stringify({ 
-          error: "SendGrid connectivity test failed",
-          success: false
-        }),
-        {
-          status: 500,
-          headers: { 
-            "Content-Type": "application/json", 
-            ...corsHeaders 
-          },
-        }
-      );
-    }
-
     // Email sending process
     console.log("📧 === Starting Email Sending Process ===");
-    const siteUrl = Deno.env.get("SITE_URL") || "https://evggmwlsmriivvrjfuvz.supabase.co";
-    console.log("🌐 Site URL:", siteUrl);
+    const baseUrl = siteUrl || "https://evggmwlsmriivvrjfuvz.supabase.co";
+    console.log("🌐 Base URL:", baseUrl);
     
     const successfulSends: string[] = [];
     const failedSends: Array<{ email: string; error: string }> = [];
@@ -228,11 +206,14 @@ const handler = async (req: Request): Promise<Response> => {
           continue;
         }
 
-        const cleanContent = content?.replace(/<[^>]*>/g, '').substring(0, 150) || '';
         const emailSubject = `${type === 'article' ? '📚 مقال جديد' : '🚀 رحلة شركة جديدة'}: ${title}`;
+        const readMoreUrl = id ? `${baseUrl}/${type === 'article' ? 'article' : 'company'}/${id}` : baseUrl;
         
         console.log(`📝 Email subject: ${emailSubject}`);
-        console.log(`📄 Content preview: ${cleanContent.substring(0, 50)}...`);
+        console.log(`🔗 Read more URL: ${readMoreUrl}`);
+        
+        // Create clean content preview
+        const cleanContent = content?.replace(/<[^>]*>/g, '').substring(0, 200) || '';
         
         const emailContent = `
           <!DOCTYPE html>
@@ -243,99 +224,87 @@ const handler = async (req: Request): Promise<Response> => {
               <title>${title}</title>
               <style>
                 body {
-                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                   margin: 0;
                   padding: 0;
-                  background-color: #0f172a;
-                  color: #e2e8f0;
+                  background-color: #f8fafc;
+                  color: #334155;
                   direction: rtl;
-                  line-height: 1.7;
+                  line-height: 1.6;
                 }
                 .container {
-                  max-width: 800px;
+                  max-width: 600px;
                   margin: 0 auto;
-                  background-color: #1e293b;
-                  border-radius: 16px;
+                  background-color: #ffffff;
+                  border-radius: 12px;
                   overflow: hidden;
-                  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+                  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                 }
                 .header {
                   background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
                   color: white;
-                  padding: 60px 40px;
+                  padding: 40px 30px;
                   text-align: center;
                 }
                 .header h1 {
                   margin: 0;
-                  font-size: 32px;
+                  font-size: 28px;
                   font-weight: 700;
                   margin-bottom: 10px;
                 }
                 .header p {
                   margin: 0;
-                  font-size: 18px;
+                  font-size: 16px;
                   opacity: 0.9;
                 }
                 .content {
-                  padding: 50px 40px;
-                  color: #e2e8f0;
+                  padding: 40px 30px;
+                  color: #334155;
                 }
                 .greeting {
                   font-size: 18px;
-                  color: #94a3b8;
-                  margin-bottom: 30px;
+                  color: #64748b;
+                  margin-bottom: 25px;
                 }
-                .article-meta {
+                .content-type-badge {
                   background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-                  padding: 20px;
-                  border-radius: 12px;
-                  margin: 30px 0;
-                  text-align: center;
                   color: white;
+                  padding: 12px 20px;
+                  border-radius: 25px;
+                  display: inline-block;
                   font-weight: 600;
-                  font-size: 16px;
+                  font-size: 14px;
+                  margin-bottom: 25px;
                 }
                 .article-title {
-                  color: #3b82f6;
-                  font-size: 28px;
+                  color: #1e293b;
+                  font-size: 24px;
                   font-weight: 700;
-                  margin: 30px 0 20px 0;
+                  margin: 25px 0 20px 0;
                   line-height: 1.3;
                 }
-                .article-content {
-                  color: #e2e8f0;
+                .article-preview {
+                  color: #475569;
                   font-size: 16px;
-                  line-height: 1.8;
-                  margin: 30px 0;
+                  line-height: 1.7;
+                  margin: 25px 0;
+                  padding: 20px;
+                  background-color: #f8fafc;
+                  border-radius: 8px;
+                  border-right: 4px solid #3b82f6;
                 }
-                .article-content h1, .article-content h2, .article-content h3 {
-                  color: #f1f5f9;
-                  margin: 25px 0 15px 0;
-                  font-weight: 600;
-                }
-                .article-content h1 { font-size: 24px; }
-                .article-content h2 { font-size: 22px; }
-                .article-content h3 { font-size: 20px; }
-                .article-content p {
-                  margin: 15px 0;
-                }
-                .article-content ul, .article-content ol {
-                  margin: 15px 0;
-                  padding-right: 20px;
-                }
-                .article-content li {
-                  margin: 8px 0;
-                }
-                .article-content strong {
-                  color: #f1f5f9;
-                  font-weight: 600;
-                }
-                .read-more-container {
+                .read-more-section {
                   text-align: center;
                   margin: 40px 0;
                   padding: 30px;
-                  background-color: #334155;
+                  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
                   border-radius: 12px;
+                }
+                .read-more-text {
+                  color: #475569;
+                  font-size: 16px;
+                  margin-bottom: 25px;
+                  font-weight: 500;
                 }
                 .read-more-btn {
                   display: inline-block;
@@ -343,7 +312,7 @@ const handler = async (req: Request): Promise<Response> => {
                   color: white;
                   padding: 16px 32px;
                   text-decoration: none;
-                  border-radius: 12px;
+                  border-radius: 8px;
                   font-weight: 600;
                   font-size: 16px;
                   transition: all 0.3s ease;
@@ -355,11 +324,10 @@ const handler = async (req: Request): Promise<Response> => {
                   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
                 }
                 .footer {
-                  background-color: #0f172a;
+                  background-color: #1e293b;
                   color: #94a3b8;
-                  padding: 40px;
+                  padding: 30px;
                   text-align: center;
-                  border-top: 1px solid #334155;
                 }
                 .footer h3 {
                   color: #f1f5f9;
@@ -372,19 +340,18 @@ const handler = async (req: Request): Promise<Response> => {
                   font-size: 14px;
                 }
                 .footer-description {
-                  margin: 20px 0;
+                  margin: 15px 0;
                   font-size: 16px;
                   color: #cbd5e1;
                 }
                 .footer-links {
-                  margin: 30px 0;
+                  margin: 20px 0;
                 }
                 .footer-links a {
                   color: #3b82f6;
                   text-decoration: none;
-                  margin: 0 15px;
+                  margin: 0 10px;
                   font-weight: 500;
-                  transition: color 0.3s ease;
                 }
                 .footer-links a:hover {
                   color: #60a5fa;
@@ -392,19 +359,13 @@ const handler = async (req: Request): Promise<Response> => {
                 .unsubscribe {
                   font-size: 12px;
                   color: #64748b;
-                  margin-top: 30px;
+                  margin-top: 20px;
                   border-top: 1px solid #334155;
-                  padding-top: 20px;
-                }
-                .unsubscribe p {
-                  margin: 5px 0;
+                  padding-top: 15px;
                 }
                 .unsubscribe a {
                   color: #3b82f6;
                   text-decoration: none;
-                }
-                .unsubscribe a:hover {
-                  text-decoration: underline;
                 }
                 @media (max-width: 600px) {
                   .container {
@@ -412,10 +373,10 @@ const handler = async (req: Request): Promise<Response> => {
                     margin: 0;
                   }
                   .header, .content, .footer {
-                    padding: 30px 20px;
+                    padding: 25px 20px;
                   }
                   .article-title {
-                    font-size: 24px;
+                    font-size: 20px;
                   }
                   .read-more-btn {
                     padding: 14px 28px;
@@ -428,32 +389,32 @@ const handler = async (req: Request): Promise<Response> => {
               <div class="container">
                 <!-- Header -->
                 <div class="header">
-                  <h1>${type === 'article' ? '📚 مقال جديد في النشرة' : '🚀 رحلة شركة جديدة'}</h1>
-                  <p>نشرة متخصصة في إدارة المنتجات والنمو</p>
+                  <h1>${type === 'article' ? '📚 مقال جديد' : '🚀 رحلة شركة جديدة'}</h1>
+                  <p>نشرة يزن صالح المتخصصة في إدارة المنتجات والنمو</p>
                 </div>
 
                 <!-- Content -->
                 <div class="content">
                   <div class="greeting">
-                    أهلاً ${subscriber.name || 'عزيزي المشترك'}،
+                    مرحباً ${subscriber.name || 'عزيزي المشترك'}،
                   </div>
                   
-                  <div class="article-meta">
-                    ${type === 'article' ? '🆕 مقال جديد متاح الآن في نشرة يزن صالح' : '🆕 رحلة شركة جديدة متاحة الآن'}
+                  <div class="content-type-badge">
+                    ${type === 'article' ? '🆕 مقال جديد متاح الآن' : '🆕 رحلة شركة جديدة متاحة الآن'}
                   </div>
                   
                   <h2 class="article-title">${title}</h2>
                   
-                  <div class="article-content">
-                    ${content}
+                  <div class="article-preview">
+                    ${cleanContent}${cleanContent.length >= 200 ? '...' : ''}
                   </div>
                   
-                  <div class="read-more-container">
-                    <p style="margin-bottom: 20px; color: #cbd5e1; font-size: 16px;">
-                      ${type === 'article' ? 'اقرأ المقال كاملاً مع التنسيق والتفاصيل الإضافية' : 'اعرف المزيد عن رحلة الشركة والتفاصيل الكاملة'}
+                  <div class="read-more-section">
+                    <p class="read-more-text">
+                      ${type === 'article' ? 'اقرأ المقال كاملاً مع التنسيق والتفاصيل الإضافية على الموقع' : 'اعرف المزيد عن رحلة الشركة والتفاصيل الكاملة على الموقع'}
                     </p>
-                    <a href="${siteUrl}/${type === 'article' ? 'article' : 'company'}/${requestBody.id || ''}" class="read-more-btn">
-                      اقرأ في الصفحة الرئيسية
+                    <a href="${readMoreUrl}" class="read-more-btn">
+                      ${type === 'article' ? 'اقرأ المقال كاملاً' : 'اعرف المزيد عن الرحلة'}
                     </a>
                   </div>
                 </div>
@@ -466,13 +427,13 @@ const handler = async (req: Request): Promise<Response> => {
                   <div class="footer-links">
                     <a href="#">LinkedIn</a>
                     <a href="#">Twitter</a>
-                    <a href="${siteUrl}">الموقع الإلكتروني</a>
+                    <a href="${baseUrl}">الموقع الإلكتروني</a>
                   </div>
                   
                   <div class="unsubscribe">
                     <p>© 2025 يزن صالح. جميع الحقوق محفوظة.</p>
                     <p>تم إرسال هذا الإيميل لأنك مشترك في نشرة يزن صالح</p>
-                    <p><a href="#" style="color: #3b82f6;">إلغاء الاشتراك</a> | <a href="${siteUrl}" style="color: #3b82f6;">زيارة الموقع</a></p>
+                    <p><a href="#">إلغاء الاشتراك</a> | <a href="${baseUrl}">زيارة الموقع</a></p>
                   </div>
                 </div>
               </div>
@@ -491,7 +452,7 @@ const handler = async (req: Request): Promise<Response> => {
             },
           ],
           from: {
-            email: "نشرة يزن صالح <onboarding@resend.dev>",
+            email: "newsletter@yazansaleh.com",
             name: "يزن صالح"
           },
           content: [
@@ -516,13 +477,6 @@ const handler = async (req: Request): Promise<Response> => {
         };
 
         console.log("📤 Sending email via SendGrid API...");
-        console.log("🔧 Email payload structure:", {
-          to: emailData.personalizations[0].to,
-          from: emailData.from,
-          subject: emailData.personalizations[0].subject,
-          contentType: emailData.content[0].type,
-          sandboxMode: emailData.mail_settings?.sandbox_mode?.enable
-        });
 
         const startTime = performance.now();
         const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
@@ -569,7 +523,7 @@ const handler = async (req: Request): Promise<Response> => {
           successfulSends.push(subscriber.email);
         }
 
-        // Rate limiting
+        // Rate limiting - wait between emails
         if (i < subscribers.length - 1) {
           console.log(`⏳ Waiting 1 second before next email...`);
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -635,8 +589,6 @@ const handler = async (req: Request): Promise<Response> => {
     console.error("Error name:", error?.name || 'Unknown');
     console.error("Error message:", error?.message || 'Unknown error');
     console.error("Error stack:", error?.stack || 'No stack trace');
-    console.error("Error toString:", error?.toString() || 'Cannot convert to string');
-    console.error("Full error object:", error);
     
     return new Response(
       JSON.stringify({ 

@@ -43,8 +43,7 @@ export const useSendNewsletter = () => {
         content,
         type,
         subscribers,
-        siteUrl: window.location.origin,
-        id: '' // سيتم تمرير ID المقال أو الشركة من الصفحة المناسبة
+        siteUrl: window.location.origin
       };
       
       console.log('Function payload:', JSON.stringify(functionPayload, null, 2));

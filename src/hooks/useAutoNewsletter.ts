@@ -6,6 +6,7 @@ interface AutoNewsletterData {
   title: string;
   content: string;
   type: 'article' | 'company';
+  id?: string;
 }
 
 export const useAutoNewsletter = () => {
@@ -14,7 +15,7 @@ export const useAutoNewsletter = () => {
 
   const sendAutoNewsletter = async ({ title, content, type }: AutoNewsletterData) => {
     try {
-      console.log('🚀 Starting auto newsletter send for:', { title, type });
+      console.log('🚀 Starting auto newsletter send for:', { title, type, id });
       
       // تحقق من وجود المحتوى المطلوب
       if (!title?.trim()) {
@@ -41,7 +42,8 @@ export const useAutoNewsletter = () => {
       const result = await sendNewsletter.mutateAsync({
         title: title.trim(),
         content: content.trim(),
-        type
+        type,
+        id
       });
 
       console.log('✅ Newsletter sent successfully:', result);

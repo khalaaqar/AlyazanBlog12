@@ -50,7 +50,8 @@ const ArticlesTab = () => {
         await sendNewsletter.mutateAsync({
           title: article.title,
           content: article.content || article.excerpt,
-          type: 'article'
+          type: 'article',
+          id: article.id
         });
         toast({
           title: "تم إرسال النشرة البريدية!",

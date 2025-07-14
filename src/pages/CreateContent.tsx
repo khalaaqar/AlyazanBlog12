@@ -199,7 +199,8 @@ const CreateContent = () => {
         await sendAutoNewsletter({
           title: articleForm.title,
           content: articleForm.content || articleForm.excerpt,
-          type: 'article'
+          type: 'article',
+          id: savedArticle?.id || editId
         });
       }
       
@@ -271,7 +272,8 @@ const CreateContent = () => {
         await sendAutoNewsletter({
           title: companyForm.name,
           content: companyForm.content || companyForm.description,
-          type: 'company'
+          type: 'company',
+          id: companyId
         });
       }
       
