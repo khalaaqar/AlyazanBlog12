@@ -452,7 +452,7 @@ const handler = async (req: Request): Promise<Response> => {
             },
           ],
           from: {
-            email: "newsletter@yazansaleh.com",
+            email: "alyazansal@gmail.com",
             name: "يزن صالح"
           },
           content: [

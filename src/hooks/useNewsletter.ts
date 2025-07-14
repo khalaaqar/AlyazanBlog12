@@ -43,7 +43,8 @@ export const useSendNewsletter = () => {
         content,
         type,
         subscribers,
-        siteUrl: window.location.origin
+        siteUrl: window.location.origin,
+        id
       };
       
       console.log('Function payload:', JSON.stringify(functionPayload, null, 2));

@@ -43,7 +43,7 @@ export const useAutoNewsletter = () => {
         title: title.trim(),
         content: content.trim(),
         type,
-        id
+        id: id
       });
 
       console.log('✅ Newsletter sent successfully:', result);
